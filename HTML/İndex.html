@@ -1,0 +1,217 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SosyalChat</title>
+<style>
+body {margin:0;font-family:Arial,sans-serif;background-color:#121212;color:#fff;transition:all 0.3s;}
+.hidden{display:none;}
+.center{text-align:center;margin-top:50px;}
+input,textarea,button{width:100%;padding:10px;margin:8px 0;border-radius:5px;border:1px solid #444;background:#1e1e1e;color:#fff;}
+button{cursor:pointer;border:none;border-radius:5px;padding:5px 10px;}
+.menu{display:flex;background:#1f1f1f;padding:10px;justify-content:space-around;}
+.menu div{cursor:pointer;}
+.profile{position:fixed;top:10px;left:10px;cursor:pointer;}
+.profile img{width:50px;height:50px;border-radius:50%;}
+.profile-info{display:none;position:absolute;top:60px;left:0;background:#1e1e1e;padding:20px;border-radius:10px;box-shadow:0 0 10px rgba(0,0,0,0.5);z-index:10;}
+.feed{margin:20px;}
+.post{background:#1e1e1e;padding:15px;margin-bottom:15px;border-radius:10px;position:relative;}
+.post-header{display:flex;align-items:center;margin-bottom:10px;}
+.post-header img{width:40px;height:40px;border-radius:50%;margin-right:10px;}
+.post-stats{display:flex;justify-content:space-between;margin-top:10px;font-size:14px;color:#aaa;}
+.accounts-channels{display:flex;gap:15px;margin:20px;}
+.account,.channel{background:#1e1e1e;padding:10px;border-radius:10px;text-align:center;cursor:pointer;flex:1;}
+.emoji-btn{cursor:pointer;margin-right:5px;font-size:18px;}
+.user-channel-header{display:flex;align-items:center;padding:10px;border-bottom:1px solid #444;}
+.user-channel-header img{width:50px;height:50px;border-radius:50%;margin-right:10px;}
+.user-posts{margin:20px;}
+video,img{max-width:100%;border-radius:10px;margin-top:10px;}
+.like-btn,.follow-btn{cursor:pointer;font-size:16px;margin-right:10px;border-radius:5px;padding:5px 10px;}
+</style>
+</head>
+<body>
+
+<div id="homePage">
+  <div class="menu">
+    <div id="menuFeed">Akış</div>
+    <div id="menuSettings">Ayarlar</div>
+    <div id="menuFeedback">Geri Bildirim</div>
+    <div id="menuAccounts">Hesaplar/Kanallar</div>
+  </div>
+
+  <div class="profile" id="profileBtn">
+    <img src="https://via.placeholder.com/50" alt="Profil">
+    <div class="profile-info" id="profileInfo">
+      <p><b>Ad:</b> <span id="pName">???</span></p>
+      <p><b>Email:</b> <span id="pEmail">???</span></p>
+      <p><b>Şifre:</b> <span id="pPass">******</span> <button id="togglePassBtn">Göster/Gizle</button></p>
+    </div>
+  </div>
+
+  <!-- Feed -->
+  <div id="feedPage" class="feed">
+    <h2>Akış</h2>
+    <textarea id="newPost" placeholder="Ne düşünüyorsun?"></textarea>
+    <div>
+      <span class="emoji-btn">😊</span>
+      <span class="emoji-btn">😂</span>
+      <span class="emoji-btn">❤️</span>
+      <span class="emoji-btn">🔥</span>
+    </div>
+    <input type="file" id="mediaInput" accept="image/*,video/*">
+    <button id="postBtn">Gönder</button>
+    <div id="posts"></div>
+  </div>
+
+  <!-- Accounts/Channels -->
+  <div id="accountsChannelsPage" class="hidden">
+    <h2>Hesaplar ve Kanallar</h2>
+    <div class="accounts-channels" id="userList"></div>
+    <div id="channelView" class="hidden">
+      <div class="user-channel-header">
+        <img id="channelImg" src="https://via.placeholder.com/50">
+        <b id="channelName">???</b>
+      </div>
+      <div class="user-posts" id="channelPosts"></div>
+    </div>
+  </div>
+
+  <!-- Settings -->
+  <div id="settingsPage" class="hidden center">
+    <h2>Ayarlar</h2>
+    <button id="darkModeBtn">Koyu Tema</button>
+    <button onclick="alert('Bildirimlere izin verildi!')">Bildirim İzni Ver</button>
+  </div>
+
+  <!-- Feedback -->
+  <div id="feedbackPage" class="hidden center">
+    <h2>Hata Varsa Yazınız!</h2>
+    <textarea rows="5" placeholder="Mesajınızı yazın..."></textarea>
+    <button>Gönder</button>
+  </div>
+</div>
+
+<script>
+let users = [];
+let currentUser = users.length>0 ? users[users.length-1] : {name:'???', email:'', pass:'', followers:0, posts:[], profile:'https://via.placeholder.com/50'};
+
+function renderProfile(){document.getElementById('pName').innerText=currentUser.name||'???';document.getElementById('pEmail').innerText=currentUser.email||'???';document.getElementById('pPass').innerText='******';}
+function toggleProfile(){let box=document.getElementById('profileInfo'); box.style.display=box.style.display==='block'?'none':'block';}
+document.getElementById('togglePassBtn').addEventListener('click',()=>{const passSpan=document.getElementById('pPass'); passSpan.innerText=passSpan.innerText==='******'?currentUser.pass:'******';})
+
+// Menu
+document.getElementById('menuFeed').addEventListener('click',()=>{showPage('feed');})
+document.getElementById('menuSettings').addEventListener('click',()=>{showPage('settings');})
+document.getElementById('menuFeedback').addEventListener('click',()=>{showPage('feedback');})
+document.getElementById('menuAccounts').addEventListener('click',()=>{showPage('accounts'); renderUserList();})
+
+// Emojis
+document.querySelectorAll('.emoji-btn').forEach(emojiBtn=>{
+  emojiBtn.addEventListener('click',()=>{document.getElementById('newPost').value+=emojiBtn.innerText;})
+})
+
+// Post
+document.getElementById('postBtn').addEventListener('click',()=>{
+  const text=document.getElementById('newPost').value;
+  const file=document.getElementById('mediaInput').files[0];
+  if(!text.trim() && !file) return;
+  let mediaHTML='';
+  if(file){
+    const url=URL.createObjectURL(file);
+    if(file.type.startsWith('image/')) mediaHTML=`<img src='${url}'>`;
+    if(file.type.startsWith('video/')) mediaHTML=`<video src='${url}' controls></video>`;
+  }
+  const postDiv=document.createElement('div');
+  postDiv.className='post';
+  postDiv.innerHTML=`
+    <div class='post-header'>
+      <img src='${currentUser.profile}' alt='Profil'>
+      <b>${currentUser.name||'???'}</b>
+    </div>
+    <div class='post-content'>${text}</div>
+    ${mediaHTML}
+    <div class='post-stats'>Beğeni: <span class='likes'>0</span> | Takipçi: <span class='followers'>${currentUser.followers}</span></div>
+    <button class='like-btn'>✔ Beğen</button>
+    <button class='follow-btn' style='background:red;color:white'>Takip Et</button>
+  `;
+  document.getElementById('posts').prepend(postDiv);
+  currentUser.posts.unshift(postDiv.outerHTML);
+  document.getElementById('newPost').value='';
+  document.getElementById('mediaInput').value='';
+})
+
+// Delegation for like/follow
+document.getElementById('posts').addEventListener('click', e=>{
+  if(e.target.classList.contains('like-btn')){
+    if(e.target.classList.contains('liked')) return;
+    e.target.classList.add('liked');
+    e.target.style.color='white';
+    const likesSpan=e.target.parentElement.querySelector('.likes');
+    likesSpan.innerText=parseInt(likesSpan.innerText)+1;
+  }
+  if(e.target.classList.contains('follow-btn')){
+    if(e.target.classList.contains('followed')){
+      e.target.classList.remove('followed');
+      e.target.style.background='red';
+      e.target.style.color='white';
+    } else{
+      e.target.classList.add('followed');
+      e.target.style.background='white';
+      e.target.style.color='black';
+    }
+  }
+})
+
+// Pages
+function showPage(page){
+  document.getElementById('feedPage').classList.add('hidden');
+  document.getElementById('settingsPage').classList.add('hidden');
+  document.getElementById('feedbackPage').classList.add('hidden');
+  document.getElementById('accountsChannelsPage').classList.add('hidden');
+  if(page==='feed') document.getElementById('feedPage').classList.remove('hidden');
+  if(page==='settings') document.getElementById('settingsPage').classList.remove('hidden');
+  if(page==='feedback') document.getElementById('feedbackPage').classList.remove('hidden');
+  if(page==='accounts') document.getElementById('accountsChannelsPage').classList.remove('hidden');
+}
+
+// Dark Mode
+document.getElementById('darkModeBtn').addEventListener('click',()=>{
+  if(document.body.style.backgroundColor==='rgb(18, 18, 18)'){
+    document.body.style.backgroundColor='#fff';
+    document.body.style.color='#000';
+  } else{
+    document.body.style.backgroundColor='#121212';
+    document.body.style.color='#fff';
+  }
+})
+
+// Accounts
+function renderUserList(){
+  const list=document.getElementById('userList');
+  list.innerHTML='';
+  users.forEach(u=>{
+    const div=document.createElement('div');
+    div.className='account';
+    div.innerHTML=`<img src='${u.profile}' width=50 height=50><br>${u.name||'???'}`;
+    div.addEventListener('click',()=>{openChannel(u);});
+    list.appendChild(div);
+  });
+}
+
+function openChannel(user){
+  document.getElementById('channelView').classList.remove('hidden');
+  document.getElementById('channelImg').src=user.profile;
+  document.getElementById('channelName').innerText=user.name||'???';
+  const postsDiv=document.getElementById('channelPosts');
+  postsDiv.innerHTML=user.posts.join('');
+}
+
+window.onload=()=>{
+  renderProfile();
+  showPage('feed');
+}
+</script>
+
+</body>
+</html>
